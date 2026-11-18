@@ -1,5 +1,6 @@
-import pandas as pd
+import os
 
+import pandas as pd
 import numpy as np
 import sys
 import matplotlib.pyplot as plt
@@ -12,6 +13,8 @@ from sklearn.model_selection import RandomizedSearchCV
 import pymc as pm
 import arviz as az
 from itertools import product
+import torch
+import torch.nn as nn
 
 training_data = np.loadtxt("regression_train.txt")
 
@@ -28,17 +31,18 @@ X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.3, 
 print('Training set size:', len(X_train))
 print('Test set size:', len(X_test))
 
-'''
 model = LinearRegression()
 
 model.fit(X_train, y_train)
 
 MSE_train = (mean_squared_error(y_train, model.predict(X_train)))
-print("Train MSE: ", round(MSE_train, 2))
+print("Train MSE Linear Regression: ", round(MSE_train, 2))
 
 MSE_test = (mean_squared_error(y_test, model.predict(X_test)))
-print("Test MSE: ", round(MSE_test, 2))
+print("Test MSE Linear Regression: ", round(MSE_test, 2))
 
+
+'''
 fig, ax = plt.subplots(figsize=(6,6))
 ax.scatter(y_test, model.predict(X_test))
 ax.plot([0,5],[0,5])
@@ -52,17 +56,17 @@ poly = PolynomialFeatures(degree=2)
 X_train_poly = poly.fit_transform(X_train)
 X_test_poly = poly.transform(X_test)
 
-'''
 model.fit(X_train_poly, y_train)
 
 y_test_pred = model.predict(X_test_poly)
 
 MSE_train = (mean_squared_error(y_train, model.predict(X_train_poly)))
-print("Train MSE: ", round(MSE_train, 2))
+print("Train MSE Polynomial Regression: ", round(MSE_train, 2))
 
 MSE_test = (mean_squared_error(y_test, y_test_pred))
-print("Test MSE: ", round(MSE_test, 2))
+print("Test MSE Polynomial Regression: ", round(MSE_test, 2))
 
+'''
 min_val = min(y_test.min(), y_test_pred.min())
 max_val = max(y_test.max(), y_test_pred.max())
 
@@ -78,93 +82,78 @@ plt.show()
 #print(model.score(X_test_poly, y_test))
 '''
 
-'''
-nn_clf = MLPRegressor(
-    hidden_layer_sizes=(32,32,), # started with 1 layer 128
-    activation='tanh', # started with relu
-    solver='adam', # started with sgd
-    learning_rate_init=np.float64(0.0007390722033525775), # started with 0.001
-    alpha=np.float64(0.00187381742286030), # started with default
-    max_iter=500, 
-    n_iter_no_change=25,
-    random_state=42
+# neural network regression using PyTorch
+
+X_train_nn = torch.tensor(X_train, dtype=torch.float32)
+y_train_nn = torch.tensor(y_train, dtype=torch.float32).reshape(-1, 1)
+X_test_nn = torch.tensor(X_test, dtype=torch.float32)
+y_test_nn = torch.tensor(y_test, dtype=torch.float32).reshape(-1, 1)
+
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
+os.environ['OMP_NUM_THREADS'] = '1'
+
+neuralnetwork_model = nn.Sequential(
+    nn.Linear(3, 16),
+    nn.Tanh(),
+    nn.Linear(16, 16),
+    nn.Tanh(),
+    nn.Linear(16, 1),
 )
 
+loss_fn = nn.MSELoss()
+optimizer = torch.optim.Adam(neuralnetwork_model.parameters(), lr=0.0001, weight_decay=0.01)
 
-nn_clf.fit(X_train, y_train)
+n_epochs = 1000
+batch_size = 10
+batch_start = torch.arange(0, len(X_train_nn), batch_size)
 
+best_mse = np.inf
+best_weights = None
+history = []
 
-fig, ax = plt.subplots(figsize=(6,4))
-ax.plot(nn_clf.loss_curve_)
-ax.set_xlabel('Number of iterations')
-ax.set_ylabel('Loss')
+for epoch in range(n_epochs):
+    neuralnetwork_model.train()
 
+    for start in batch_start:
+        X_batch = X_train_nn[start:start + batch_size]
+        y_batch = y_train_nn[start:start + batch_size]
+
+        y_pred = neuralnetwork_model(X_batch)
+        loss = loss_fn(y_pred, y_batch)
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+    if (epoch + 1) % 100 == 0:
+        neuralnetwork_model.eval()
+        with torch.no_grad():
+            train_preds = neuralnetwork_model(X_train_nn)
+            epoch_loss = loss_fn(train_preds, y_train_nn).item()
+            history.append(epoch_loss)
+            print(f'Epoch [{epoch+1}/{n_epochs}], Training MSE: {epoch_loss:.4f}')
+
+neuralnetwork_model.eval()
+with torch.no_grad():
+    y_test_pred = neuralnetwork_model(X_test_nn)
+    test_mse = loss_fn(y_test_pred, y_test_nn).item()
+
+print(f'Final Testing MSE (PyTorch): {test_mse:.4f}')
+
+epochs_recorded = range(100, n_epochs + 1, 100)
+
+'''
+plt.figure(figsize=(6, 4))
+plt.plot(
+    epochs_recorded, history, marker='o', linestyle='-', color='b'
+)
+plt.title('Training Loss (MSE) Over Epochs')
+plt.xlabel('Epochs')
+plt.ylabel('Loss (MSE)')
+plt.grid(True)
 plt.show()
-
-
-y_train_pred = nn_clf.predict(X_train)
-y_test_pred = nn_clf.predict(X_test)
-
-print('Training MSE: ', round(mean_squared_error(y_train, y_train_pred), 4))
-print('Testing MSE: ', round(mean_squared_error(y_test, y_test_pred), 4))
 '''
 
-
-'''
-alphas = np.logspace(-3, 0, 100)
-learning_rates = np.logspace(-4, -2, 100)
-
-hidden_layers = [
-    (32,),
-    (64,),
-    (128,),
-    (32, 32),
-    (64, 32),
-    (64, 64),
-    (128, 64),
-    (64, 32, 16)
-]
-
-iterations = [300, 400, 500, 525, 600, 750, 1000, 1500, 2000]
-
-activations = ['identity', 'logistic', 'tanh', 'relu']
-
-solvers = ['lbfgs', 'sgd', 'adam']
-
-parameters = {
-    'learning_rate_init': learning_rates,
-    'alpha': alphas,
-    'hidden_layer_sizes': hidden_layers,
-    'activation': activations,
-    'solver': solvers,
-    'max_iter': iterations
-}
-
-clf = RandomizedSearchCV(
-    nn_clf,
-    parameters,
-    scoring='neg_mean_squared_error',
-    n_iter=40,
-    cv=5,
-    verbose=2,
-    random_state=42
-)
-
-clf.fit(X_train, y_train)
-
-best_nn = clf.best_estimator_
-
-print('Best parameters:', clf.best_params_)
-print('Best CV MSE:', -clf.best_score_)
-
-y_train_pred = best_nn.predict(X_train)
-y_test_pred = best_nn.predict(X_test)
-
-#print('Training MSE:', mean_squared_error(y_train, y_train_pred))
-#print('Testing MSE:', mean_squared_error(y_test, y_test_pred))
-'''
-
-'''
 # Bayesian regression using PyMC
 
 print(X_train.shape)
@@ -207,9 +196,9 @@ y_test_pred = predict(X_test)
 train_mse = mean_squared_error(y_train, y_train_pred)
 test_mse = mean_squared_error(y_test, y_test_pred)
 
-print("Bayesian Regression Training MSE:", train_mse)
-print("Bayesian Regression Testing MSE:", test_mse)
-'''
+print("Bayesian Linear Regression Training MSE:", train_mse)
+print("Bayesian Linear Regression Testing MSE:", test_mse)
+
 
 # Bayesian polynomial regression
 
@@ -240,5 +229,5 @@ y_test_pred = predict_poly(X_test_poly)
 print("Bayesian Polynomial Regression Training MSE:", mean_squared_error(y_train, y_train_pred))
 print("Bayesian Polynomial Regression Testing MSE:", mean_squared_error(y_test, y_test_pred))
 
-pc = az.plot_trace_dist(idata_poly, compact=False)
-pc.show()
+#pc = az.plot_trace_dist(idata_poly, compact=False)
+#pc.show()
