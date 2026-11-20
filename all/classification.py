@@ -12,6 +12,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.tree import export_text
+from sklearn.svm import SVC
 
 training_data = np.loadtxt("classification_train.txt")
 
@@ -20,11 +21,9 @@ y = [int(z) for z in training_data[:,-1]]
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
-'''
 scaler = StandardScaler().fit(X_train)
 X_train_scaled = scaler.transform(X_train)
 X_test_scaled = scaler.transform(X_test)
-'''
 
 '''
 pipe = make_pipeline(StandardScaler(), LogisticRegression(random_state=0, solver='liblinear'))
@@ -61,14 +60,14 @@ ax2.set_title("Confusion Matrix")
 plt.tight_layout()
 plt.show()
 '''
-
+'''
 model = DecisionTreeClassifier(ccp_alpha=0.0, criterion='gini', max_depth=1, min_samples_split=5).fit(X_train, y_train)
 
 print("Training set accuracy: {}".format(model.score(X_train, y_train)))
 print("Test set accuracy: {}".format(model.score(X_test, y_test)))
 
 print(export_text(model, feature_names=["x1", "x2", "x3"]))
-
+'''
 
 '''
 param_grid = {'max_depth': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -82,4 +81,40 @@ grid_search.fit(X_train, y_train)
 print("Best DT params:", grid_search.best_params_)
 print(f"Best 5-fold CV accuracy: {grid_search.best_score_:.4f}")
 print(f"Test set accuracy: {grid_search.score(X_test, y_test):.4f}")
+'''
+
+svm = SVC(C=10, kernel='rbf', gamma='scale', random_state=0)
+svm.fit(X_train_scaled, y_train)
+
+svm2 = SVC()
+svm2.fit(X_train_scaled, y_train)
+
+print(f'SVM2 classifier accuracy: {svm2.score(X_test_scaled, y_test):.4f}')
+
+print(f'SVM classifier accuracy: {svm.score(X_test_scaled, y_test):.4f}')
+
+'''
+svm_pipeline = make_pipeline(StandardScaler(), SVC(random_state=0))
+
+param_grid = [
+    {"svc__kernel": ["linear"], "svc__C": [0.01, 0.1, 1, 10, 100]},
+    {
+        "svc__kernel": ["rbf"],
+        "svc__C": [0.1, 1, 10, 100],
+        "svc__gamma": ["scale", "auto", 0.01, 0.1, 1],
+    },
+    {
+        "svc__kernel": ["poly"],
+        "svc__degree": [2, 3],
+        "svc__C": [0.1, 1, 10],
+        "svc__gamma": ["scale", 0.1, 1],
+    },
+]
+
+grid_svm = GridSearchCV(svm_pipeline, param_grid, cv=5, scoring="accuracy")
+grid_svm.fit(X_train, y_train)
+
+print("Best SVM params:", grid_svm.best_params_)
+print(f"Best 5-fold CV accuracy: {grid_svm.best_score_:.4f}")
+print(f"Test set accuracy: {grid_svm.score(X_test, y_test):.4f}")
 '''
