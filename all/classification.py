@@ -9,6 +9,9 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import make_pipeline
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score
+from sklearn.tree import export_text
 
 training_data = np.loadtxt("classification_train.txt")
 
@@ -57,4 +60,26 @@ ax2.set_title("Confusion Matrix")
 
 plt.tight_layout()
 plt.show()
+'''
+
+model = DecisionTreeClassifier(ccp_alpha=0.0, criterion='gini', max_depth=1, min_samples_split=5).fit(X_train, y_train)
+
+print("Training set accuracy: {}".format(model.score(X_train, y_train)))
+print("Test set accuracy: {}".format(model.score(X_test, y_test)))
+
+print(export_text(model, feature_names=["x1", "x2", "x3"]))
+
+
+'''
+param_grid = {'max_depth': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+              'min_samples_split': [1, 5, 10, 20, 30],
+              'ccp_alpha': [0.0, 0.005, 0.01, 0.02, 0.05],
+              'criterion': ['gini', 'entropy']}
+
+grid_search = GridSearchCV(DecisionTreeClassifier(), param_grid, cv=5, scoring='accuracy')
+grid_search.fit(X_train, y_train)
+
+print("Best DT params:", grid_search.best_params_)
+print(f"Best 5-fold CV accuracy: {grid_search.best_score_:.4f}")
+print(f"Test set accuracy: {grid_search.score(X_test, y_test):.4f}")
 '''
