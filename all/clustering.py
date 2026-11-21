@@ -7,17 +7,35 @@ training_data = np.loadtxt("clustering_train.txt")
 
 print(training_data.shape)
 
+'''
 K = 3 
 
-kmeans = KMeans(K, init='random').fit(training_data)
+kmeans = KMeans(K).fit(training_data)
+
 cluster_assignments = kmeans.predict(training_data)
 centroid_locations = kmeans.cluster_centers_
 
-def plot_k_means(X, cluster_assignments, centroid_locations):
-    plt.figure(figsize=(6, 6))
-    plt.viridis() # Set colour map
-    plt.scatter(X[:, 0], X[:, 1], s=20, c=cluster_assignments, alpha=0.8) # plot data points
-    plt.scatter(centroid_locations[:, 0], centroid_locations[:, 1], s=200, marker='X', c=range(K), edgecolors='k') # plot centroids
-    plt.show()
+fig = plt.figure(figsize=(7, 7))
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(training_data[:, 0], training_data[:, 1], training_data[:, 2], c=cluster_assignments, cmap='viridis', s=20, alpha=0.8)
+ax.scatter(centroid_locations[:, 0], centroid_locations[:, 1], centroid_locations[:, 2], c=range(K), cmap='viridis', s=200, marker='X', edgecolors='k')
+plt.title(f'K-Means (K={K})')
+plt.show()
+'''
 
-plot_k_means(training_data, cluster_assignments, centroid_locations)
+
+K = 3
+gmm = GaussianMixture(n_components=K, max_iter=50, warm_start=True, init_params='random', tol=1e-8).fit(training_data)
+
+print("Converged:", gmm.converged_)
+print("Iterations:", gmm.n_iter_)
+print("Means:\n", gmm.means_)
+
+assignments = gmm.predict(training_data)
+
+fig = plt.figure(figsize=(7, 7))
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(training_data[:, 0], training_data[:, 1], training_data[:, 2], c=assignments, cmap='viridis', s=20, alpha=0.8)
+ax.scatter(gmm.means_[:, 0], gmm.means_[:, 1], gmm.means_[:, 2], c=range(K), cmap='viridis', s=200, marker='X', edgecolors='k')
+plt.title(f'Converged GMM (K={K})')
+plt.show()
