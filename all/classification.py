@@ -40,13 +40,19 @@ score = grid.score(X_test, y_test)
 print(f"Test set accuracy: {score:.4f}")
 '''
 
-'''
-clf = LogisticRegression(C=0.1, penalty='l1', random_state=0).fit(X_train_scaled, y_train)
+
+clf = LogisticRegression(C=0.1, penalty='l2', random_state=0).fit(X_train_scaled, y_train)
 
 y_test_pred = clf.predict(X_test_scaled)
-score = clf.score(X_test_scaled, y_test)
-print(score)
-'''
+y_train_pred = clf.predict(X_train_scaled)
+
+score_test = clf.score(X_test_scaled, y_test)
+score_train = clf.score(X_train_scaled, y_train)
+
+
+print(score_train)
+print(score_test)
+
 
 '''
 fig = plt.figure(figsize=(5, 5))
@@ -60,14 +66,13 @@ ax2.set_title("Confusion Matrix")
 plt.tight_layout()
 plt.show()
 '''
-'''
+
 model = DecisionTreeClassifier(ccp_alpha=0.0, criterion='gini', max_depth=1, min_samples_split=5).fit(X_train, y_train)
 
 print("Training set accuracy: {}".format(model.score(X_train, y_train)))
 print("Test set accuracy: {}".format(model.score(X_test, y_test)))
 
 print(export_text(model, feature_names=["x1", "x2", "x3"]))
-'''
 
 '''
 param_grid = {'max_depth': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -83,6 +88,7 @@ print(f"Best 5-fold CV accuracy: {grid_search.best_score_:.4f}")
 print(f"Test set accuracy: {grid_search.score(X_test, y_test):.4f}")
 '''
 
+
 svm = SVC(C=10, kernel='rbf', gamma='scale', random_state=0)
 svm.fit(X_train_scaled, y_train)
 
@@ -92,6 +98,7 @@ svm2.fit(X_train_scaled, y_train)
 print(f'SVM2 classifier accuracy: {svm2.score(X_test_scaled, y_test):.4f}')
 
 print(f'SVM classifier accuracy: {svm.score(X_test_scaled, y_test):.4f}')
+
 
 '''
 svm_pipeline = make_pipeline(StandardScaler(), SVC(random_state=0))
@@ -118,3 +125,46 @@ print("Best SVM params:", grid_svm.best_params_)
 print(f"Best 5-fold CV accuracy: {grid_svm.best_score_:.4f}")
 print(f"Test set accuracy: {grid_svm.score(X_test, y_test):.4f}")
 '''
+
+# random forest ensemble
+np.random.seed(0)
+
+y_train = np.array(y_train)
+y_test = np.array(y_test)
+
+num_models = 20
+sample_size = X_train.shape[0]
+feature_sample_size = 5
+
+all_models = []
+
+for m in range(num_models):
+    sample_idx = np.random.choice(X_train.shape[0], sample_size)
+    X_train_sample, y_train_sample = X_train[sample_idx], y_train[sample_idx]
+
+    thisModel = DecisionTreeClassifier(max_depth=4, max_features=feature_sample_size)
+    thisModel.fit(X_train_sample, y_train_sample)
+
+    all_models.append(thisModel)
+
+
+def bagging_predict(test_data, all_models):
+    votes = np.zeros((test_data.shape[0], len(all_models)))
+    combined_predictions = np.zeros(test_data.shape[0])
+
+    for idx, m in enumerate(all_models):
+        votes[:, idx] = m.predict(test_data)
+
+    for test_point in range(votes.shape[0]):
+        combined_predictions[test_point] = np.bincount(np.int64(votes[test_point])).argmax()
+
+    return combined_predictions
+
+prediction_test = bagging_predict(X_test, all_models)
+prediction_train = bagging_predict(X_train, all_models)
+
+accuracy_test = np.count_nonzero(prediction_test==np.int64(y_test))/y_test.shape[0]
+accuracy_train = np.count_nonzero(prediction_train==np.int64(y_train))/y_train.shape[0]
+
+print("Train set accuracy: {}".format(accuracy_train))
+print("Test set accuracy: {}".format(accuracy_test))
