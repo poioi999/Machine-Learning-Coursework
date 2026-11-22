@@ -17,6 +17,8 @@ from torch.nn import functional as F
 from typing import Callable
 from torch import optim
 
+np.random.seed(42)
+torch.manual_seed(42)
 
 training_data = np.loadtxt("regression_train.txt")
 
@@ -90,11 +92,16 @@ plt.show()
 
 # neural network regression using PyTorch
 
+X_train_nn, X_validation, y_train_nn, y_validation = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
 
-X_train_nn = torch.tensor(X_train, dtype=torch.float32)
-y_train_nn = torch.tensor(y_train, dtype=torch.float32).reshape(-1, 1)
+
+X_train_nn = torch.tensor(X_train_nn, dtype=torch.float32)
+y_train_nn = torch.tensor(y_train_nn, dtype=torch.float32).reshape(-1, 1)
 X_test_nn = torch.tensor(X_test, dtype=torch.float32)
 y_test_nn = torch.tensor(y_test, dtype=torch.float32).reshape(-1, 1)
+
+X_validation = torch.tensor(X_validation, dtype=torch.float32)
+y_validation = torch.tensor(y_validation, dtype=torch.float32).reshape(-1,1)
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 os.environ['OMP_NUM_THREADS'] = '1'
@@ -116,7 +123,7 @@ class MLP(nn.Module):
         return x
 
 feature_count = 3
-hidden_layer = 8
+hidden_layer = 16
 output_size = 1
 
 nn_model = MLP(feature_count, hidden_layer, output_size)
@@ -129,29 +136,45 @@ loss_function = nn.MSELoss()
 
 #loss.backward()
 
-optimizer = optim.Adam(nn_model.parameters(), lr = 0.001, weight_decay = 0.01)
-
+optimizer = optim.Adam(nn_model.parameters(), lr = 0.001, weight_decay=0.01)
+#optimizer = optim.SGD(nn_model.parameters(), lr = 0.05)
 loss_vals_before = []
+
+best_loss = sys.float_info.max
+delta = 0
+patience = 50
 
 for epoch in range(1, 1000):
     logits = nn_model.forward(X_train_nn)
     loss = loss_function(logits, y_train_nn)
-
-    print("epoch: {}, loss: {:5.5f}".format(
-        epoch,
-        loss.item()
-    ))
-    loss_vals_before.append(loss.item())
-
     loss.backward()
     optimizer.step()
+
+    with torch.no_grad():
+        this_loss = loss_function(nn_model(X_validation), y_validation).item()
+
+    if (epoch%100 == 0 or epoch==999):
+        print("epoch: {}, loss: {:5.5f}".format(
+                epoch,
+                loss.item()
+            ))
+        loss_vals_before.append(loss.item())
+
+    if this_loss < best_loss:
+        best_loss = this_loss
+        delta = 0
+    else :
+        delta += 1
+
+        if delta >= patience:
+            print("Early stopping triggered")
+            break
 
     optimizer.zero_grad()
 
 nn_model.eval()
-with torch.no_grad():
-    logits = nn_model.forward(X_test_nn)    
-    test_mse = loss_function(logits, y_test_nn).item()
+with torch.no_grad():   
+    test_mse = loss_function(nn_model(X_test_nn), y_test_nn).item()
 
 print(f'Final Testing MSE (PyTorch): {test_mse:.4f}')
 
