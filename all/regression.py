@@ -1,5 +1,4 @@
 import os
-
 import pandas as pd
 import numpy as np
 import sys
@@ -8,13 +7,16 @@ from sklearn.metrics import ConfusionMatrixDisplay, mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler, PolynomialFeatures
-from sklearn.neural_network import MLPRegressor
 from sklearn.model_selection import RandomizedSearchCV
 import pymc as pm
 import arviz as az
 from itertools import product
 import torch
-import torch.nn as nn
+from torch import nn
+from torch.nn import functional as F
+from typing import Callable
+from torch import optim
+
 
 training_data = np.loadtxt("regression_train.txt")
 
@@ -31,6 +33,7 @@ X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.3, 
 print('Training set size:', len(X_train))
 print('Test set size:', len(X_test))
 
+'''
 model = LinearRegression()
 
 model.fit(X_train, y_train)
@@ -40,6 +43,7 @@ print("Train MSE Linear Regression: ", round(MSE_train, 2))
 
 MSE_test = (mean_squared_error(y_test, model.predict(X_test)))
 print("Test MSE Linear Regression: ", round(MSE_test, 2))
+'''
 
 
 '''
@@ -51,6 +55,7 @@ ax.set_ylabel('Prediction')
 plt.show()
 '''
 
+'''
 poly = PolynomialFeatures(degree=2)
 
 X_train_poly = poly.fit_transform(X_train)
@@ -65,6 +70,7 @@ print("Train MSE Polynomial Regression: ", round(MSE_train, 2))
 
 MSE_test = (mean_squared_error(y_test, y_test_pred))
 print("Test MSE Polynomial Regression: ", round(MSE_test, 2))
+'''
 
 '''
 min_val = min(y_test.min(), y_test_pred.min())
@@ -84,6 +90,7 @@ plt.show()
 
 # neural network regression using PyTorch
 
+
 X_train_nn = torch.tensor(X_train, dtype=torch.float32)
 y_train_nn = torch.tensor(y_train, dtype=torch.float32).reshape(-1, 1)
 X_test_nn = torch.tensor(X_test, dtype=torch.float32)
@@ -92,70 +99,63 @@ y_test_nn = torch.tensor(y_test, dtype=torch.float32).reshape(-1, 1)
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 os.environ['OMP_NUM_THREADS'] = '1'
 
-neuralnetwork_model = nn.Sequential(
-    nn.Linear(3, 16),
-    nn.Tanh(),
-    nn.Linear(16, 16),
-    nn.Tanh(),
-    nn.Linear(16, 1),
-)
+class MLP(nn.Module):
+    def __init__(self,  input_size:int, hidden_layer_size: int, output_size:int, activation_fn: Callable[[torch.Tensor], torch.Tensor] = F.tanh):
+        super().__init__()
+        self.l1 = nn.Linear(input_size, hidden_layer_size)
+        self.l2 = nn.Linear(hidden_layer_size, hidden_layer_size)
+        self.l3 = nn.Linear(hidden_layer_size, output_size)
+        self.activation_fn = activation_fn
 
-loss_fn = nn.MSELoss()
-optimizer = torch.optim.Adam(neuralnetwork_model.parameters(), lr=0.0001, weight_decay=0.01)
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        x = self.l1(inputs)
+        x = self.activation_fn(x)
+        x = self.l2(x)
+        x = self.activation_fn(x)
+        x = self.l3(x)
+        return x
 
-n_epochs = 1000
-batch_size = 10
-batch_start = torch.arange(0, len(X_train_nn), batch_size)
+feature_count = 3
+hidden_layer = 8
+output_size = 1
 
-best_mse = np.inf
-best_weights = None
-history = []
+nn_model = MLP(feature_count, hidden_layer, output_size)
 
-for epoch in range(n_epochs):
-    neuralnetwork_model.train()
+logits = nn_model.forward(X_train_nn)
+print(logits.shape)
 
-    for start in batch_start:
-        X_batch = X_train_nn[start:start + batch_size]
-        y_batch = y_train_nn[start:start + batch_size]
+loss_function = nn.MSELoss()
+#loss = loss_function(logits, y_train_nn)
 
-        y_pred = neuralnetwork_model(X_batch)
-        loss = loss_fn(y_pred, y_batch)
+#loss.backward()
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+optimizer = optim.Adam(nn_model.parameters(), lr = 0.001, weight_decay = 0.01)
 
-    if (epoch + 1) % 100 == 0:
-        neuralnetwork_model.eval()
-        with torch.no_grad():
-            train_preds = neuralnetwork_model(X_train_nn)
-            epoch_loss = loss_fn(train_preds, y_train_nn).item()
-            history.append(epoch_loss)
-            print(f'Epoch [{epoch+1}/{n_epochs}], Training MSE: {epoch_loss:.4f}')
+loss_vals_before = []
 
-neuralnetwork_model.eval()
-with torch.no_grad():
-    y_test_pred = neuralnetwork_model(X_test_nn)
-    test_mse = loss_fn(y_test_pred, y_test_nn).item()
+for epoch in range(1, 1000):
+    logits = nn_model.forward(X_train_nn)
+    loss = loss_function(logits, y_train_nn)
+
+    print("epoch: {}, loss: {:5.5f}".format(
+        epoch,
+        loss.item()
+    ))
+    loss_vals_before.append(loss.item())
+
+    loss.backward()
+    optimizer.step()
+
+    optimizer.zero_grad()
+
+logits = nn_model.forward(X_test_nn)    
+test_mse = loss_function(logits, y_test_nn).item()
 
 print(f'Final Testing MSE (PyTorch): {test_mse:.4f}')
 
-epochs_recorded = range(100, n_epochs + 1, 100)
-
-'''
-plt.figure(figsize=(6, 4))
-plt.plot(
-    epochs_recorded, history, marker='o', linestyle='-', color='b'
-)
-plt.title('Training Loss (MSE) Over Epochs')
-plt.xlabel('Epochs')
-plt.ylabel('Loss (MSE)')
-plt.grid(True)
-plt.show()
-'''
-
 # Bayesian regression using PyMC
 
+'''
 print(X_train.shape)
 
 
@@ -231,3 +231,4 @@ print("Bayesian Polynomial Regression Testing MSE:", mean_squared_error(y_test, 
 
 #pc = az.plot_trace_dist(idata_poly, compact=False)
 #pc.show()
+'''
