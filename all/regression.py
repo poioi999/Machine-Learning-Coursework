@@ -35,7 +35,7 @@ X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.3, 
 print('Training set size:', len(X_train))
 print('Test set size:', len(X_test))
 
-'''
+
 model = LinearRegression()
 
 model.fit(X_train, y_train)
@@ -45,7 +45,6 @@ print("Train MSE Linear Regression: ", round(MSE_train, 2))
 
 MSE_test = (mean_squared_error(y_test, model.predict(X_test)))
 print("Test MSE Linear Regression: ", round(MSE_test, 2))
-'''
 
 
 '''
@@ -57,8 +56,7 @@ ax.set_ylabel('Prediction')
 plt.show()
 '''
 
-'''
-poly = PolynomialFeatures(degree=2)
+poly = PolynomialFeatures(degree=2, include_bias=False)
 
 X_train_poly = poly.fit_transform(X_train)
 X_test_poly = poly.transform(X_test)
@@ -72,7 +70,7 @@ print("Train MSE Polynomial Regression: ", round(MSE_train, 2))
 
 MSE_test = (mean_squared_error(y_test, y_test_pred))
 print("Test MSE Polynomial Regression: ", round(MSE_test, 2))
-'''
+
 
 '''
 min_val = min(y_test.min(), y_test_pred.min())
@@ -110,7 +108,7 @@ class MLP(nn.Module):
     def __init__(self,  input_size:int, hidden_layer_size: int, output_size:int, activation_fn: Callable[[torch.Tensor], torch.Tensor] = F.tanh):
         super().__init__()
         self.l1 = nn.Linear(input_size, hidden_layer_size)
-        self.l2 = nn.Linear(hidden_layer_size, hidden_layer_size)
+        self.l2 = nn.Linear(hidden_layer_size,hidden_layer_size)
         self.l3 = nn.Linear(hidden_layer_size, output_size)
         self.activation_fn = activation_fn
 
@@ -135,6 +133,8 @@ loss_function = nn.MSELoss()
 #loss = loss_function(logits, y_train_nn)
 
 #loss.backward()
+train_losses = []
+val_losses = []
 
 optimizer = optim.Adam(nn_model.parameters(), lr = 0.001, weight_decay=0.01)
 #optimizer = optim.SGD(nn_model.parameters(), lr = 0.05)
@@ -143,8 +143,9 @@ loss_vals_before = []
 best_loss = sys.float_info.max
 delta = 0
 patience = 50
+best_epoch = 0
 
-for epoch in range(1, 1000):
+for epoch in range(1, 1500):
     logits = nn_model.forward(X_train_nn)
     loss = loss_function(logits, y_train_nn)
     loss.backward()
@@ -153,15 +154,20 @@ for epoch in range(1, 1000):
     with torch.no_grad():
         this_loss = loss_function(nn_model(X_validation), y_validation).item()
 
-    if (epoch%100 == 0 or epoch==999):
+    train_losses.append(loss.item())
+    val_losses.append(this_loss)
+
+    if (epoch%100 == 0 or epoch==1499):
         print("epoch: {}, loss: {:5.5f}".format(
                 epoch,
                 loss.item()
             ))
         loss_vals_before.append(loss.item())
 
+    
     if this_loss < best_loss:
         best_loss = this_loss
+        best_epoch = epoch
         delta = 0
     else :
         delta += 1
@@ -169,6 +175,7 @@ for epoch in range(1, 1000):
         if delta >= patience:
             print("Early stopping triggered")
             break
+    
 
     optimizer.zero_grad()
 
@@ -176,13 +183,29 @@ nn_model.eval()
 with torch.no_grad():   
     test_mse = loss_function(nn_model(X_test_nn), y_test_nn).item()
 
+with torch.no_grad():   
+    train_mse = loss_function(nn_model(X_train_nn), y_train_nn).item()
+
+print(f'Final Training MSE (PyTorch): {train_mse:.4f}')
 print(f'Final Testing MSE (PyTorch): {test_mse:.4f}')
+
+'''
+plt.figure(figsize=(8, 5))
+plt.plot(train_losses, label="Train MSE")
+plt.plot(val_losses, label="Validation MSE")
+plt.axvline(best_epoch - 1, color="gray", linestyle="--", label=f"Best epoch ({best_epoch})")
+plt.xlabel("Epoch")
+plt.ylabel("MSE loss")
+plt.title("Training vs validation loss")
+plt.legend()
+plt.grid(alpha=0.3)
+plt.show()
+'''
+
 
 # Bayesian regression using PyMC
 
-'''
 print(X_train.shape)
-
 
 num_samples = 1000
 bayesian_model = pm.Model()
@@ -256,4 +279,3 @@ print("Bayesian Polynomial Regression Testing MSE:", mean_squared_error(y_test, 
 
 #pc = az.plot_trace_dist(idata_poly, compact=False)
 #pc.show()
-'''
