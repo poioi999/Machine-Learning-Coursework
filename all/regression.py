@@ -148,8 +148,10 @@ for epoch in range(1, 1000):
 
     optimizer.zero_grad()
 
-logits = nn_model.forward(X_test_nn)    
-test_mse = loss_function(logits, y_test_nn).item()
+nn_model.eval()
+with torch.no_grad():
+    logits = nn_model.forward(X_test_nn)    
+    test_mse = loss_function(logits, y_test_nn).item()
 
 print(f'Final Testing MSE (PyTorch): {test_mse:.4f}')
 
