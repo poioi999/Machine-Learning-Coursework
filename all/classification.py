@@ -13,6 +13,11 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.tree import export_text
 from sklearn.svm import SVC
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.ensemble import BaggingClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.ensemble import RandomForestClassifier
 
 training_data = np.loadtxt("classification_train.txt")
 
@@ -40,7 +45,7 @@ score = grid.score(X_test, y_test)
 print(f"Test set accuracy: {score:.4f}")
 '''
 
-
+'''
 clf = LogisticRegression(C=0.1, penalty='l2', random_state=0).fit(X_train_scaled, y_train)
 
 y_test_pred = clf.predict(X_test_scaled)
@@ -52,7 +57,7 @@ score_train = clf.score(X_train_scaled, y_train)
 
 print(score_train)
 print(score_test)
-
+'''
 
 '''
 fig = plt.figure(figsize=(5, 5))
@@ -67,12 +72,14 @@ plt.tight_layout()
 plt.show()
 '''
 
+'''
 model = DecisionTreeClassifier(ccp_alpha=0.0, criterion='gini', max_depth=1, min_samples_split=5).fit(X_train, y_train)
 
 print("Training set accuracy: {}".format(model.score(X_train, y_train)))
 print("Test set accuracy: {}".format(model.score(X_test, y_test)))
 
 print(export_text(model, feature_names=["x1", "x2", "x3"]))
+'''
 
 '''
 param_grid = {'max_depth': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -88,7 +95,7 @@ print(f"Best 5-fold CV accuracy: {grid_search.best_score_:.4f}")
 print(f"Test set accuracy: {grid_search.score(X_test, y_test):.4f}")
 '''
 
-
+'''
 svm = SVC(C=10, kernel='rbf', gamma='scale', random_state=0)
 svm.fit(X_train_scaled, y_train)
 
@@ -98,7 +105,7 @@ svm2.fit(X_train_scaled, y_train)
 print(f'SVM2 classifier accuracy: {svm2.score(X_test_scaled, y_test):.4f}')
 
 print(f'SVM classifier accuracy: {svm.score(X_test_scaled, y_test):.4f}')
-
+'''
 
 '''
 svm_pipeline = make_pipeline(StandardScaler(), SVC(random_state=0))
@@ -126,21 +133,25 @@ print(f"Best 5-fold CV accuracy: {grid_svm.best_score_:.4f}")
 print(f"Test set accuracy: {grid_svm.score(X_test, y_test):.4f}")
 '''
 
-# random forest ensemble
-np.random.seed(0)
+# ensemble methods
+np.random.seed(42)
 
-y_train = np.array(y_train)
+X_train_ensemble, X_validation, y_train_ensemble, y_validation = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
+
+y_train_ensemble = np.array(y_train_ensemble)
 y_test = np.array(y_test)
+y_validation = np.array(y_validation)
 
+'''
 num_models = 20
-sample_size = X_train.shape[0]
+sample_size = X_train_ensemble.shape[0]
 feature_sample_size = 5
 
 all_models = []
 
 for m in range(num_models):
-    sample_idx = np.random.choice(X_train.shape[0], sample_size)
-    X_train_sample, y_train_sample = X_train[sample_idx], y_train[sample_idx]
+    sample_idx = np.random.choice(X_train_ensemble.shape[0], sample_size)
+    X_train_sample, y_train_sample = X_train_ensemble[sample_idx], y_train_ensemble[sample_idx]
 
     thisModel = DecisionTreeClassifier(max_depth=4, max_features=feature_sample_size)
     thisModel.fit(X_train_sample, y_train_sample)
@@ -161,10 +172,112 @@ def bagging_predict(test_data, all_models):
     return combined_predictions
 
 prediction_test = bagging_predict(X_test, all_models)
-prediction_train = bagging_predict(X_train, all_models)
+prediction_train = bagging_predict(X_train_ensemble, all_models)
+prediction_validation = bagging_predict(X_validation, all_models)
 
 accuracy_test = np.count_nonzero(prediction_test==np.int64(y_test))/y_test.shape[0]
-accuracy_train = np.count_nonzero(prediction_train==np.int64(y_train))/y_train.shape[0]
+accuracy_train = np.count_nonzero(prediction_train==np.int64(y_train_ensemble))/y_train_ensemble.shape[0]
+accuracy_validation = np.count_nonzero(prediction_validation==np.int64(y_validation))/y_validation.shape[0]
 
-print("Train set accuracy: {}".format(accuracy_train))
-print("Test set accuracy: {}".format(accuracy_test))
+print("Train set accuracy random forest: {}".format(accuracy_train))
+print("Test set accuracy random forest: {}".format(accuracy_test))
+print("Validation set accuracy random forest: {}".format(accuracy_validation))
+'''
+# adaboost ensemble
+parameters_adaBoost = {
+    'learning_rate': [round(x * 0.1, 1) for x in range(1, 21)],
+    'n_estimators': list(range(1,51)),
+}
+
+adaBoost_model = AdaBoostClassifier(random_state=42)
+adaBoost_model = GridSearchCV(adaBoost_model, parameters_adaBoost, cv=5, n_jobs=-1)
+
+adaBoost_model.fit(X_train_ensemble, y_train_ensemble)
+
+print("Best params:", adaBoost_model.best_params_)
+print("Best cv score:", adaBoost_model.best_score_)
+
+print("Validation score AdaBoost:", adaBoost_model.score(X_validation, y_validation))
+print("Train score AdaBoost:", adaBoost_model.score(X_train_ensemble, y_train_ensemble))
+print("Test score AdaBoost:", adaBoost_model.score(X_test, y_test))
+
+# bagging ensemble
+
+parameters_bagging = {
+    'estimator':[DecisionTreeClassifier(max_depth=3), SVC(), LogisticRegression()],
+    'n_estimators': [5,10,15,20,30,40,50],
+    'max_features': [1, 2, 3]
+}
+
+bagging_model = BaggingClassifier(random_state=42)
+bagging_model = GridSearchCV(bagging_model, parameters_bagging, cv=5, n_jobs=-1)
+
+bagging_model.fit(X_train_ensemble, y_train_ensemble)
+
+print("Best params:", bagging_model.best_params_)
+print("Best cv score:", bagging_model.best_score_)
+
+bagging_validation = bagging_model.score(X_validation, y_validation)
+bagging_train = bagging_model.score(X_train_ensemble, y_train_ensemble)
+bagging_test = bagging_model.score(X_test, y_test)
+
+print("Validation score Bagging:", bagging_validation)
+print("Train score Bagging:", bagging_train)
+print("Test score Bagging:", bagging_test)
+
+# gradient boosting ensemble
+
+parameters_gradientBoosting = {
+    'learning_rate': [round(x * 0.1, 1) for x in range(1, 11)],
+    'n_estimators': [10, 25, 75, 100],
+    'min_samples_split': [3,5,8,10],
+    'min_samples_leaf': [3,5,8,10],
+    'max_depth':[1,2,3,4,5,10],
+    'max_features':[1,2,3],
+    'n_iter_no_change': [10,15,30],
+    'ccp_alpha':[0.0, 0.01, 0.05, 0.1, 1]
+}
+
+gradientBoosting_model = GradientBoostingClassifier(random_state=42)
+gradientBoosting_model = RandomizedSearchCV(gradientBoosting_model, parameters_gradientBoosting, n_iter=100,cv=5, n_jobs=-1, random_state=42)
+
+gradientBoosting_model.fit(X_train_ensemble, y_train_ensemble)
+
+print("Best params:", gradientBoosting_model.best_params_)
+print("Best cv score:", gradientBoosting_model.best_score_)
+
+gradientBoosting_validation = gradientBoosting_model.score(X_validation, y_validation)
+gradientBoosting_train = gradientBoosting_model.score(X_train_ensemble, y_train_ensemble)
+gradientBoosting_test = gradientBoosting_model.score(X_test, y_test)
+
+print("Validation score gradient boosting:", gradientBoosting_validation)
+print("Train score gradient boosting:", gradientBoosting_train)
+print("Test score gradient boosting:", gradientBoosting_test)
+
+# random forest ensemble
+
+parameters_randomForest = {
+    'n_estimators': [10, 25, 75, 100],
+    'criterion': ['gini', 'entropy', 'log_loss'],
+    'max_depth':[1,2,3,4,5,10],
+    'min_samples_split': [3,5,8,10],
+    'min_samples_leaf': [3,5,8,10],
+    'max_features':[1,2,3],
+    'ccp_alpha':[0.0, 0.01, 0.05, 0.1, 1]
+}
+
+randomForest_model = RandomForestClassifier(random_state=42)
+randomForest_model = RandomizedSearchCV(randomForest_model, parameters_randomForest, n_iter=100, cv=5, n_jobs=-1, random_state=42)
+
+randomForest_model.fit(X_train_ensemble, y_train_ensemble)
+
+print("Best params:", randomForest_model.best_params_)
+print("Best cv score:", randomForest_model.best_score_)
+
+randomForest_validation = randomForest_model.score(X_validation, y_validation)
+randomForest_train = randomForest_model.score(X_train_ensemble, y_train_ensemble)
+randomForest_test = randomForest_model.score(X_test, y_test)
+
+print("Validation score random forest:", randomForest_validation)
+print("Train score random forest:", randomForest_train)
+print("Test score random forest:", randomForest_test)
