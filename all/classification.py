@@ -142,47 +142,7 @@ y_train_ensemble = np.array(y_train_ensemble)
 y_test = np.array(y_test)
 y_validation = np.array(y_validation)
 
-'''
-num_models = 20
-sample_size = X_train_ensemble.shape[0]
-feature_sample_size = 5
 
-all_models = []
-
-for m in range(num_models):
-    sample_idx = np.random.choice(X_train_ensemble.shape[0], sample_size)
-    X_train_sample, y_train_sample = X_train_ensemble[sample_idx], y_train_ensemble[sample_idx]
-
-    thisModel = DecisionTreeClassifier(max_depth=4, max_features=feature_sample_size)
-    thisModel.fit(X_train_sample, y_train_sample)
-
-    all_models.append(thisModel)
-
-
-def bagging_predict(test_data, all_models):
-    votes = np.zeros((test_data.shape[0], len(all_models)))
-    combined_predictions = np.zeros(test_data.shape[0])
-
-    for idx, m in enumerate(all_models):
-        votes[:, idx] = m.predict(test_data)
-
-    for test_point in range(votes.shape[0]):
-        combined_predictions[test_point] = np.bincount(np.int64(votes[test_point])).argmax()
-
-    return combined_predictions
-
-prediction_test = bagging_predict(X_test, all_models)
-prediction_train = bagging_predict(X_train_ensemble, all_models)
-prediction_validation = bagging_predict(X_validation, all_models)
-
-accuracy_test = np.count_nonzero(prediction_test==np.int64(y_test))/y_test.shape[0]
-accuracy_train = np.count_nonzero(prediction_train==np.int64(y_train_ensemble))/y_train_ensemble.shape[0]
-accuracy_validation = np.count_nonzero(prediction_validation==np.int64(y_validation))/y_validation.shape[0]
-
-print("Train set accuracy random forest: {}".format(accuracy_train))
-print("Test set accuracy random forest: {}".format(accuracy_test))
-print("Validation set accuracy random forest: {}".format(accuracy_validation))
-'''
 # adaboost ensemble
 parameters_adaBoost = {
     'learning_rate': [round(x * 0.1, 1) for x in range(1, 21)],
