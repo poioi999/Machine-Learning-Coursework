@@ -18,6 +18,7 @@ from sklearn.ensemble import BaggingClassifier
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import plot_tree
 
 training_data = np.loadtxt("classification_train.txt")
 
@@ -38,15 +39,14 @@ param_grid = {"logisticregression__C": [0.01, 0.1, 1, 10, 100], "logisticregress
 grid = GridSearchCV(pipe, param_grid, cv=5, scoring="accuracy")
 grid.fit(X_train, y_train)
 
-print("Best parameters:", grid.best_params_)
-print(f"Best 5-fold CV accuracy: {grid.best_score_:.4f}")
+print("Best parameters logistic regression:", grid.best_params_)
+print(f"Best 5-fold CV accuracy logistic regression: {grid.best_score_:.4f}")
 
 score = grid.score(X_test, y_test)
 print(f"Test set accuracy: {score:.4f}")
 '''
-
-'''
-clf = LogisticRegression(C=0.1, penalty='l2', random_state=0).fit(X_train_scaled, y_train)
+# final logistic regression model with the highest scoring hyperparameters
+clf = LogisticRegression(C=0.1, random_state=42).fit(X_train_scaled, y_train)
 
 y_test_pred = clf.predict(X_test_scaled)
 y_train_pred = clf.predict(X_train_scaled)
@@ -54,37 +54,19 @@ y_train_pred = clf.predict(X_train_scaled)
 score_test = clf.score(X_test_scaled, y_test)
 score_train = clf.score(X_train_scaled, y_train)
 
-
-print(score_train)
-print(score_test)
-'''
-
-'''
-fig = plt.figure(figsize=(5, 5))
-
-ax2 = fig.add_subplot(122)
-cm = confusion_matrix(y_test, y_test_pred)
-disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=[0, 1])
-disp.plot(ax=ax2, cmap="Blues", colorbar=False)
-ax2.set_title("Confusion Matrix")
-
-plt.tight_layout()
-plt.show()
-'''
+print("Logistic regression train score", score_train)
+print("logistic regression test score", score_test)
 
 '''
 model = DecisionTreeClassifier(ccp_alpha=0.0, criterion='gini', max_depth=1, min_samples_split=5).fit(X_train, y_train)
 
-print("Training set accuracy: {}".format(model.score(X_train, y_train)))
-print("Test set accuracy: {}".format(model.score(X_test, y_test)))
+print("Training set accuracy decision tree: {}".format(model.score(X_train, y_train)))
+print("Test set accuracy decision tree: {}".format(model.score(X_test, y_test)))
 
-print(export_text(model, feature_names=["x1", "x2", "x3"]))
-'''
-
-'''
 param_grid = {'max_depth': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
               'min_samples_split': [1, 5, 10, 20, 30],
               'ccp_alpha': [0.0, 0.005, 0.01, 0.02, 0.05],
+              'max_features': [1,2,3],
               'criterion': ['gini', 'entropy']}
 
 grid_search = GridSearchCV(DecisionTreeClassifier(), param_grid, cv=5, scoring='accuracy')
@@ -94,21 +76,38 @@ print("Best DT params:", grid_search.best_params_)
 print(f"Best 5-fold CV accuracy: {grid_search.best_score_:.4f}")
 print(f"Test set accuracy: {grid_search.score(X_test, y_test):.4f}")
 '''
+# final deicision tree model with best hyperparameters
+
+decisionTree_model = DecisionTreeClassifier(ccp_alpha=0.0, criterion='entropy', max_depth=2, max_features=2, min_samples_split=30)
+
+decisionTree_model.fit(X_train, y_train)
+print("Final decision tree train set score", decisionTree_model.score(X_train, y_train))
+print("Final decision tree test set score", decisionTree_model.score(X_test, y_test))
 
 '''
-svm = SVC(C=10, kernel='rbf', gamma='scale', random_state=0)
+plt.figure(figsize=(10, 5))
+plot_tree(
+    decisionTree_model,
+    feature_names=["Feature 0", "Feature 1", "Feature 2"],  
+    class_names=["Class 0", "Class 1"],  
+    filled=True,
+    rounded=True,
+    fontsize=10,
+)
+plt.title("Final Regularized Decision Tree (max_depth=2, criterion='entropy')")
+plt.tight_layout()
+plt.savefig("decision_tree.png", dpi=300)
+plt.show()
+'''
+
+svm = SVC()
 svm.fit(X_train_scaled, y_train)
 
-svm2 = SVC()
-svm2.fit(X_train_scaled, y_train)
-
-print(f'SVM2 classifier accuracy: {svm2.score(X_test_scaled, y_test):.4f}')
-
-print(f'SVM classifier accuracy: {svm.score(X_test_scaled, y_test):.4f}')
-'''
+print(f'SVM classifier test accuracy: {svm.score(X_test_scaled, y_test):.4f}')
+print(f'SVM classifier train accuracy: {svm.score(X_train_scaled, y_train):.4f}')
 
 '''
-svm_pipeline = make_pipeline(StandardScaler(), SVC(random_state=0))
+svm_pipeline = make_pipeline(StandardScaler(), SVC(random_state=42))
 
 param_grid = [
     {"svc__kernel": ["linear"], "svc__C": [0.01, 0.1, 1, 10, 100]},
@@ -129,8 +128,8 @@ grid_svm = GridSearchCV(svm_pipeline, param_grid, cv=5, scoring="accuracy")
 grid_svm.fit(X_train, y_train)
 
 print("Best SVM params:", grid_svm.best_params_)
-print(f"Best 5-fold CV accuracy: {grid_svm.best_score_:.4f}")
-print(f"Test set accuracy: {grid_svm.score(X_test, y_test):.4f}")
+print(f"Best 5-fold CV accuracy SVM: {grid_svm.best_score_:.4f}")
+print(f"Test set accuracy SVM: {grid_svm.score(X_test, y_test):.4f}")
 '''
 
 # ensemble methods
@@ -142,7 +141,7 @@ y_train_ensemble = np.array(y_train_ensemble)
 y_test = np.array(y_test)
 y_validation = np.array(y_validation)
 
-
+'''
 # adaboost ensemble
 parameters_adaBoost = {
     'learning_rate': [round(x * 0.1, 1) for x in range(1, 21)],
@@ -241,3 +240,10 @@ randomForest_test = randomForest_model.score(X_test, y_test)
 print("Validation score random forest:", randomForest_validation)
 print("Train score random forest:", randomForest_train)
 print("Test score random forest:", randomForest_test)
+'''
+
+finalEnsemble_model = RandomForestClassifier(n_estimators=100, min_samples_split=3, min_samples_leaf=8, max_features=1, max_depth=10, criterion='gini', ccp_alpha=0.1)
+finalEnsemble_model.fit(X_train, y_train)
+
+print("random forest train score", finalEnsemble_model.score(X_train, y_train))
+print("random forest test score", finalEnsemble_model.score(X_test, y_test))
