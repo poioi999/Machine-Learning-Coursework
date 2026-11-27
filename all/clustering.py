@@ -14,6 +14,7 @@ kmeans = KMeans(K).fit(training_data)
 
 cluster_assignments = kmeans.predict(training_data)
 centroid_locations = kmeans.cluster_centers_
+print("K means cluster centres", centroid_locations)
 
 fig = plt.figure(figsize=(7, 7))
 ax = fig.add_subplot(111, projection='3d')
@@ -25,7 +26,7 @@ plt.show()
 
 
 K = 3
-gmm = GaussianMixture(n_components=K, max_iter=50, warm_start=True, init_params='random', tol=1e-8).fit(training_data)
+gmm = GaussianMixture(n_components=K, max_iter=100, warm_start=True, init_params='kmeans', tol=1e-8, n_init=10, random_state=42).fit(training_data)
 
 print("Converged:", gmm.converged_)
 print("Iterations:", gmm.n_iter_)
